@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mojo-mmh3"
+version = "0.1.0"
+description = "MurmurHash3 32/128 kernels implemented in Mojo"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["cffi>=1.17"]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
