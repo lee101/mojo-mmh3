@@ -28,6 +28,7 @@ _ffi.cdef(
 _PACK_U64 = struct.Struct("<QQ")
 _PACK_U32 = struct.Struct("<IIII")
 _library_lock = threading.Lock()
+_thread_results = threading.local()
 
 
 class BuildError(RuntimeError):
@@ -94,9 +95,23 @@ def _buffer(value: object, *, allow_str: bool):
 
 
 def _result_buffer():
-    result = _ffi.new("uint64_t[2]")
-    address = int(_ffi.cast("uintptr_t", result))
-    return result, address
+    try:
+        return _thread_results.result128
+    except AttributeError:
+        result = _ffi.new("uint64_t[2]")
+        cached = result, int(_ffi.cast("uintptr_t", result))
+        _thread_results.result128 = cached
+        return cached
+
+
+def _result32_buffer():
+    try:
+        return _thread_results.result32
+    except AttributeError:
+        result = _ffi.new("uint32_t[1]")
+        cached = result, int(_ffi.cast("uintptr_t", result))
+        _thread_results.result32 = cached
+        return cached
 
 
 def _check_status(status: int) -> None:
@@ -106,8 +121,7 @@ def _check_status(status: int) -> None:
 
 def hash32(value: object, seed: int, *, allow_str: bool) -> int:
     view, pointer, address = _buffer(value, allow_str=allow_str)
-    result = _ffi.new("uint32_t[1]")
-    result_address = int(_ffi.cast("uintptr_t", result))
+    result, result_address = _result32_buffer()
     status = library().mojo_mmh3_x86_32(
         address, len(view), seed, result_address
     )

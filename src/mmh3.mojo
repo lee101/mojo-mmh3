@@ -107,8 +107,26 @@ def x64_128(data: BPtr, n: Int, seed: UInt32, result: U64Ptr):
     var h2 = UInt64(seed)
     comptime c1 = UInt64(0x87C37B91114253D5)
     comptime c2 = UInt64(0x4CF5AD432745937F)
+    comptime W = simd_width_of[DType.float64]()
 
     var i = 0
+    while i + W * 8 <= n:
+        var keys = (data + i).bitcast[UInt64]().load[width=W, alignment=1]()
+
+        comptime for lane in range(0, W, 2):
+            var k1 = rotl64[31](keys[lane] * c1) * c2
+            h1 = h1 ^ k1
+            h1 = rotl64[27](h1)
+            h1 = h1 + h2
+            h1 = h1 * UInt64(5) + UInt64(0x52DCE729)
+
+            var k2 = rotl64[33](keys[lane + 1] * c2) * c1
+            h2 = h2 ^ k2
+            h2 = rotl64[31](h2)
+            h2 = h2 + h1
+            h2 = h2 * UInt64(5) + UInt64(0x38495AB5)
+        i += W * 8
+
     while i + 16 <= n:
         var k1 = load64(data, i)
         var k2 = load64(data, i + 8)

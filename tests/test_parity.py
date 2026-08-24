@@ -252,6 +252,20 @@ def test_x86_32_unaligned_simd_and_scalar_tails(length):
     assert mojo.mmh3_32_digest(data, 42) == mmh3.mmh3_32_digest(data, 42)
 
 
+@pytest.mark.parametrize("length", range(15, 50))
+@pytest.mark.parametrize(
+    ("ours", "upstream"),
+    [
+        (mojo.mmh3_x64_128_digest, mmh3.mmh3_x64_128_digest),
+        (mojo.mmh3_x86_128_digest, mmh3.mmh3_x86_128_digest),
+    ],
+)
+def test_128_unaligned_simd_and_scalar_tails(length, ours, upstream):
+    backing = bytearray((index * 37) & 0xFF for index in range(length + 1))
+    data = memoryview(backing)[1:]
+    assert ours(data, 42) == upstream(data, 42)
+
+
 def test_parallel_128_digest_calls_use_independent_results():
     inputs = [os.urandom(1024 + index) for index in range(32)]
 

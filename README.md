@@ -85,12 +85,12 @@ E5-2697 v4 at 2.30 GHz, Linux x86_64, Python 3.13.14:
 
 | workload | mojo-mmh3 | mmh3 5.2.1 | relative |
 |---|---:|---:|---:|
-| x86_32, 64 B | 3.12 us | 191 ns | 16.31x slower |
-| x86_32, 8 MiB | 3.80 ms | 4.17 ms | 1.10x faster |
-| x64_128, 64 B | 3.75 us | 182 ns | 20.64x slower |
-| x64_128, 8 MiB | 2.59 ms | 2.13 ms | 1.22x slower |
-| x86_128, 64 B | 5.33 us | 269 ns | 19.77x slower |
-| x86_128, 8 MiB | 4.68 ms | 3.76 ms | 1.24x slower |
+| x86_32, 64 B | 2.60 us | 193 ns | 13.43x slower |
+| x86_32, 8 MiB | 3.78 ms | 3.89 ms | 1.03x faster |
+| x64_128, 64 B | 2.86 us | 184 ns | 15.56x slower |
+| x64_128, 8 MiB | 1.68 ms | 1.57 ms | 1.07x slower |
+| x86_128, 64 B | 3.38 us | 203 ns | 16.63x slower |
+| x86_128, 8 MiB | 3.04 ms | 2.42 ms | 1.25x slower |
 
 Upstream is a mature native C extension. Tiny-input results are dominated by
 the Python-to-CFFI call and result conversion; the compute-bound large-buffer
@@ -100,29 +100,30 @@ cases more closely measure the Mojo kernels.
 
 `src/mmh3.mojo` contains the three canonical MurmurHash3 variants in one
 compilation unit. The x86_32 loop loads and mixes four words with SIMD before
-applying the hash-state recurrence in order; scalar block and byte-tail loops
-handle every remainder. The kernels use Mojo's bit-rotate primitive so the
-compiler emits native rotates instead of duplicated shift/multiply sequences.
-Scalar loads assemble little-endian words explicitly; the SIMD fast path uses
-unaligned native word loads on the supported Linux x86_64 target. Unsigned
+applying the hash-state recurrence in order. The x64_128 loop loads two blocks
+at a time with an unaligned SIMD load. Scalar block and byte-tail loops handle
+every remainder. The kernels use Mojo's bit-rotate primitive so the compiler
+emits native rotates instead of duplicated shift/multiply sequences. Unsigned
 32-bit and 64-bit arithmetic provides the algorithm's required wraparound
 behavior.
 
 Python obtains a C-contiguous byte view without copying, keeps that view and its
 CFFI pointer alive for the entire native call, and passes its address and byte
-length across the C ABI as `Int` values. Each call supplies caller-owned output
-storage. The exported Mojo functions reject negative lengths and null addresses
-before reconstructing `UnsafePointer[..., AnyOrigin[mut=True]]` values. Empty
+length across the C ABI as `Int` values. Each thread reuses its caller-owned
+output storage across calls, avoiding a CFFI allocation per digest. The
+exported Mojo functions reject negative lengths and null addresses before
+reconstructing `UnsafePointer[..., AnyOrigin[mut=True]]` values. Empty
 inputs use the non-null output allocation as a never-dereferenced dummy input
 because Mojo pointers are non-nullable. Mojo performs no allocation and returns
 a status code; Python raises if a kernel rejects its arguments, then constructs
 upstream's bytes, integer, or tuple representation.
 
-The 128-bit kernels are not internally parallelized: every block updates state
-needed by the next block, so splitting a single digest across threads changes
-the algorithm and thread launch overhead cannot be amortized safely. No GPU
-path is provided. The serial recurrence and low arithmetic intensity make this
-a poor fit for device transfer and launch overhead.
+The kernels are not internally parallelized: every block updates state needed
+by the next block, so splitting a single digest across threads changes the
+algorithm and no correct size threshold can make that recurrence independent.
+No GPU path is provided because these kernels are below roughly two arithmetic
+operations per byte moved and remain serial across blocks; device transfer and
+launch overhead cannot be amortized.
 
 ## Development
 
