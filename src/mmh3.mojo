@@ -67,7 +67,7 @@ def x86_32(data: BPtr, n: Int, seed: UInt32) -> UInt32:
 
     var i = 0
     while i + W * 4 <= n:
-        var keys = (data + i).bitcast[UInt32]().load[width=W, alignment=1]()
+        var keys = (data + i).bitcast[UInt32]().unsafe_load[width=W, alignment=1]()
         keys = rotate_bits_left[15](keys * vc1) * vc2
         comptime for lane in range(W):
             h1 = h1 ^ keys[lane]
@@ -111,7 +111,7 @@ def x64_128(data: BPtr, n: Int, seed: UInt32, result: U64Ptr):
 
     var i = 0
     while i + W * 8 <= n:
-        var keys = (data + i).bitcast[UInt64]().load[width=W, alignment=1]()
+        var keys = (data + i).bitcast[UInt64]().unsafe_load[width=W, alignment=1]()
 
         comptime for lane in range(0, W, 2):
             var k1 = rotl64[31](keys[lane] * c1) * c2
